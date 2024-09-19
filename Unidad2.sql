@@ -244,24 +244,99 @@ AND V.cod_vendedor = V2.cod_vendedor
 )
 
 
---Problema 2.2: Subconsultas en el Having--1. Se quiere saber ¿cuándo realizó su primer venta cada vendedor? y
---¿cuánto fue el importe total de las ventas que ha realizado? Mostrar estos 
---datos en un listado solo para los casos en que su importe promedio de
---vendido sea superior al importe promedio general (importe promedio de
+--Problema 2.2: Subconsultas en el Having
+--1. Se quiere saber ¿cuándo realizó su primer venta cada vendedor? y ¿cuánto fue el importe total de las ventas que ha realizado? Mostrar estos 
+--datos en un listado solo para los casos en que su importe promedio de vendido sea superior al importe promedio general (importe promedio de
 --todas las facturas).
---2. Liste los montos totales mensuales facturados por cliente y además del
---promedio de ese monto y el promedio de precio de artículos Todos esto
---datos correspondientes a período que va desde el 1° de febrero al 30 de
---agosto del 2014. Sólo muestre los datos si esos montos totales son
+SELECT V.ape_vendedor + ' ' + V.nom_vendedor Vendedor, MIN(F.fecha) PrimerVenta, SUM(DF.cantidad * DF.pre_unitario) ImporteTotal
+FROM facturas F
+JOIN detalle_facturas DF ON DF.nro_factura = F.nro_factura
+JOIN vendedores V ON V.cod_vendedor = F.cod_vendedor
+GROUP BY F.cod_vendedor, V.ape_vendedor + ' ' + V.nom_vendedor
+HAVING SUM(DF.cantidad * DF.pre_unitario) / COUNT(DISTINCT F.nro_factura) >
+(SELECT SUM(DF2.cantidad * DF2.pre_unitario) / COUNT(DISTINCT F2.nro_factura)
+FROM facturas F2
+JOIN detalle_facturas DF2 ON DF2.nro_factura = F2.nro_factura
+)
+--2. Liste los montos totales mensuales facturados por cliente y además del promedio de ese monto y el promedio de precio de artículos Todos esto
+--datos correspondientes a período que va desde el 1° de febrero al 30 de agosto del 2014. Sólo muestre los datos si esos montos totales son
 --superiores o iguales al promedio global.
---3. Por cada artículo que se tiene a la venta, se quiere saber el importe
---promedio vendido, la cantidad total vendida por artículo, para los casos
---en que los números de factura no sean uno de los siguientes: 2, 10, 7, 13,
---22 y que ese importe promedio sea inferior al importe promedio de ese
+
+--??????????????????????????????
+SELECT YEAR(F.fecha) 'Año', MONTH(F.fecha) 'Mes', C.ape_cliente + ' ' + C.nom_cliente Cliente, SUM(DF.cantidad * DF.pre_unitario) MontoTotal,
+SUM(DF.cantidad * DF.pre_unitario) / COUNT (DISTINCT F.nro_factura) PromedioMontos, AVG(DF.pre_unitario) PromedioPrecioArticulo
+FROM facturas F
+JOIN detalle_facturas DF ON DF.nro_factura = F.nro_factura
+JOIN clientes C ON C.cod_cliente = F.cod_cliente
+WHERE F.fecha BETWEEN '01/02/2014' AND '30/07/2014'
+GROUP BY MONTH(F.fecha),YEAR(F.fecha), C.cod_cliente, C.ape_cliente + ' ' + C.nom_cliente
+HAVING SUM(DF.cantidad * DF.pre_unitario) >=
+(SELECT SUM(DF2.cantidad * DF2.pre_unitario) / COUNT(DISTINCT F2.nro_factura)
+FROM facturas F2
+JOIN detalle_facturas DF2 ON DF2.nro_factura = F2.nro_factura
+)
+ORDER BY 1, 2
+--3. Por cada artículo que se tiene a la venta, se quiere saber el importe promedio vendido, la cantidad total vendida por artículo, para los casos
+--en que los números de factura no sean uno de los siguientes: 2, 10, 7, 13, 22 y que ese importe promedio sea inferior al importe promedio de ese
 --artículo.
+SELECT A.cod_articulo, A.descripcion, 
+SUM(DF.cantidad * DF.pre_unitario) / COUNT(DISTINCT F.nro_factura) ImportePromedioVendido,
+SUM(DF.cantidad) CantidadTotal
+FROM facturas F
+JOIN detalle_facturas DF ON DF.nro_factura = F.nro_factura
+JOIN articulos A ON A.cod_articulo = DF.cod_articulo
+WHERE F.nro_factura NOT IN (2,10,7,13,22)
+GROUP BY A.cod_articulo, A.descripcion
+HAVING SUM(DF.cantidad * DF.pre_unitario) / COUNT(DISTINCT DF.nro_factura) < 
+(SELECT SUM(DF2.cantidad * DF2.pre_unitario) / COUNT(DISTINCT DF2.nro_factura)
+FROM facturas F2
+JOIN detalle_facturas DF2 ON DF2.nro_factura = F2.nro_factura
+WHERE DF2.cod_articulo = A.cod_articulo
+)
+ORDER BY 1
+--------------------------------?????????????????????????
+SELECT A.cod_articulo, A.descripcion, 
+SUM(DF.cantidad * DF.pre_unitario) / COUNT(DISTINCT F.nro_factura) ImportePromedioVendido,
+SUM(DF.cantidad) CantidadTotal
+FROM facturas F
+JOIN detalle_facturas DF ON DF.nro_factura = F.nro_factura
+JOIN articulos A ON A.cod_articulo = DF.cod_articulo
+WHERE F.nro_factura NOT IN (2,10,7,13,22)
+GROUP BY A.cod_articulo, A.descripcion
+HAVING SUM(DF.cantidad * DF.pre_unitario) / COUNT(DISTINCT DF.nro_factura) < 
+(SELECT SUM(DF2.cantidad * DF2.pre_unitario) / COUNT(DISTINCT DF2.nro_factura)
+FROM detalle_facturas DF2
+WHERE DF2.cod_articulo = A.cod_articulo
+)
+ORDER BY 1
+--------------------------------------------------------Guia
+select a.cod_articulo,sum(cantidad*d.pre_unitario)/count(distinct d.nro_factura)
+promedio,
+sum(cantidad) 'cant. total'
+from facturas f join detalle_facturas d on f.nro_factura=d.nro_factura
+join articulos a on a.cod_articulo=d.cod_articulo
+where f.nro_factura not In (2, 10, 7, 13,22)
+group by a.cod_articulo
+having sum(cantidad*d.pre_unitario)/count(distinct d.nro_factura)<
+(select sum(cantidad*pre_unitario)/count(distinct d.nro_factura)
+from detalle_facturas d1
+where d1.cod_articulo=a.cod_articulo)ORDER BY 1
+
 --4. Listar la cantidad total vendida, el importe y promedio vendido por fecha,
---siempre que esa cantidad sea superior al promedio de la cantidad global.
---Rotule y ordene.
+--siempre que esa cantidad sea superior al promedio de la cantidad global. Rotule y ordene.
+SELECT F.fecha Fecha,
+SUM(DF.cantidad) CantidadTotalVendida,
+SUM(DF.cantidad * DF.pre_unitario) Importe,
+SUM(DF.cantidad * DF.pre_unitario) / COUNT(DISTINCT F.nro_factura) Promedio
+FROM facturas F
+JOIN detalle_facturas DF ON DF.nro_factura = F.nro_factura
+GROUP BY F.fecha
+HAVING SUM(DF.cantidad) >
+(SELECT AVG(DF2.cantidad) 
+FROM detalle_facturas DF2
+)
+ORDER BY 1
+
 --5. Se quiere saber el promedio del importe vendido y la fecha de la primer
 --venta por fecha y artículo para los casos en que las cantidades vendidas
 --oscilen entre 5 y 20 y que ese importe sea superior al importe promedio
