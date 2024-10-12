@@ -320,7 +320,8 @@ group by a.cod_articulo
 having sum(cantidad*d.pre_unitario)/count(distinct d.nro_factura)<
 (select sum(cantidad*pre_unitario)/count(distinct d.nro_factura)
 from detalle_facturas d1
-where d1.cod_articulo=a.cod_articulo)ORDER BY 1
+where d1.cod_articulo=a.cod_articulo)
+ORDER BY 1
 
 --4. Listar la cantidad total vendida, el importe y promedio vendido por fecha,
 --siempre que esa cantidad sea superior al promedio de la cantidad global. Rotule y ordene.
@@ -336,18 +337,77 @@ HAVING SUM(DF.cantidad) >
 FROM detalle_facturas DF2
 )
 ORDER BY 1
-
 --5. Se quiere saber el promedio del importe vendido y la fecha de la primer
 --venta por fecha y artículo para los casos en que las cantidades vendidas
 --oscilen entre 5 y 20 y que ese importe sea superior al importe promedio
 --de ese artículo.
---6. Emita un listado con los montos diarios facturados que sean inferior al
---importe promedio general.
+SELECT F.fecha Fecha, A.descripcion Articulo, SUM(DF.cantidad * DF.pre_unitario) / COUNT(DISTINCT F.nro_factura) PromedioImporteVendido, MIN(F.fecha) FechaPrimerVenta
+FROM Facturas F JOIN detalle_facturas DF ON F.nro_factura = DF.nro_factura
+	JOIN articulos A ON A.cod_articulo = DF.cod_articulo
+WHERE DF.cantidad BETWEEN 5 AND 20
+GROUP BY F.fecha, A.cod_articulo, A.descripcion
+HAVING SUM(DF.cantidad * DF.pre_unitario) >
+(SELECT AVG(DF2.cantidad * DF2.pre_unitario)
+FROM detalle_facturas DF2
+WHERE A.cod_articulo = DF2.cod_articulo
+)
+
+--6. Emita un listado con los montos diarios facturados que sean inferior al importe promedio general.
+SELECT DAY(F.fecha) Dia, MONTH(F.fecha) Mes, YEAR(F.fecha) Anio, SUM(DF.cantidad * DF.pre_unitario) Monto
+FROM facturas F JOIN detalle_facturas DF ON DF.nro_factura = F.nro_factura
+GROUP BY DAY(F.fecha), MONTH(F.fecha), YEAR(F.fecha)
+HAVING SUM(DF.cantidad * DF.pre_unitario) <
+(SELECT AVG(DF2.cantidad * DF2.pre_unitario)
+FROM detalle_facturas DF2
+)
+ORDER BY 3,2,1
 --7. Se quiere saber la fecha de la primera y última venta, el importe total
 --facturado por cliente para los años que oscilen entre el 2010 y 2015 y que
 --el importe promedio facturado sea menor que el importe promedio total
---para ese cliente.
+--para ese cliente. 
+SELECT MIN(F.fecha) PrimerVenta, MAX(F.fecha) UltimaVenta, C.ape_cliente Cliente
+FROM facturas F JOIN detalle_facturas DF ON DF.nro_factura = F.nro_factura JOIN clientes C ON C.cod_cliente = F.cod_cliente
+WHERE YEAR(F.fecha) BETWEEN 2010 AND 2015
+GROUP BY C.cod_cliente, C.ape_cliente
+HAVING AVG(DF.cantidad * DF.pre_unitario) <
+(SELECT AVG(DF2.cantidad * DF2.pre_unitario)
+FROM detalle_facturas DF2 JOIN facturas F2 ON F2.nro_factura = DF2.nro_factura
+WHERE F2.cod_cliente = C.cod_cliente
+)
+
 --8. Realice un informe que muestre cuánto fue el total anual facturado por
---cada vendedor, para los casos en que el nombre de vendedor no comience
---con ‘B’ ni con ‘M’, que los números de facturas oscilen entre 5 y 25 y que
---el promedio del monto facturado sea inferior al promedio de ese año. 
+--cada vendedor, para los casos en que el nombre de vendedor no
+--comience con ‘B’ ni con ‘M’, que los números de facturas oscilen entre 5
+--y 25 y que el promedio del monto facturado sea inferior al promedio de
+--ese año. 
+SELECT YEAR(F.fecha) Anio, SUM(DF.cantidad * DF.pre_unitario) TotalFacturado, V.ape_vendedor Vendedor
+FROM facturas F JOIN detalle_facturas DF ON DF.nro_factura = F.nro_factura JOIN vendedores V ON V.cod_vendedor = F.cod_vendedor
+WHERE V.nom_vendedor NOT LIKE '[B,M]%'
+AND F.nro_factura BETWEEN 5 AND 25
+GROUP BY YEAR(F.fecha), V.cod_vendedor, V.ape_vendedor
+HAVING AVG(DF.cantidad * DF.pre_unitario) <
+(SELECT AVG(DF2.cantidad * DF2.pre_unitario)
+FROM detalle_facturas DF2 JOIN facturas F2 ON DF2.nro_factura = F2.nro_factura
+WHERE DATEDIFF(YEAR, F2.fecha, GETDATE()) = 0
+)
+
+
+--Los vendedores cuyas ventas totales sea superior al promedio general de ventas
+SELECT V.cod_vendedor CodVendedor, V.ape_vendedor +' ' + V.nom_vendedor Vendedor, SUM(DF.cantidad * DF.pre_unitario) VentasTotales
+FROM vendedores V JOIN facturas F ON V.cod_vendedor = F.cod_vendedor JOIN detalle_facturas DF ON DF.nro_factura = F.nro_factura
+GROUP BY V.cod_vendedor, V.ape_vendedor, V.nom_vendedor
+HAVING SUM(DF.cantidad * DF.pre_unitario) > 
+(SELECT AVG(DF2.cantidad * DF2.pre_unitario) PromedioGeneral
+FROM detalle_facturas DF2
+)
+
+--Listar vendedores cuyos promedio de ventas del anio sea menor al mismo dato del anio pasado
+SELECT V.cod_vendedor CodVendedor, V.ape_vendedor +' ' + V.nom_vendedor Vendedor, AVG(DF.cantidad * DF.pre_unitario) PromedioVentas
+FROM vendedores V JOIN facturas F ON V.cod_vendedor = F.cod_vendedor JOIN detalle_facturas DF ON DF.nro_factura = F.nro_factura
+WHERE DATEDIFF(YEAR, F.fecha, GETDATE()) = 0
+GROUP BY V.cod_vendedor, V.ape_vendedor +' ' + V.nom_vendedor
+HAVING AVG(DF.cantidad * DF.pre_unitario) <
+(SELECT AVG(DF2.cantidad * DF2.pre_unitario)
+FROM detalle_facturas DF2 JOIN facturas F2 ON F2.nro_factura = DF2.nro_factura
+WHERE DATEDIFF(YEAR, F2.fecha, GETDATE()) = 1
+)
